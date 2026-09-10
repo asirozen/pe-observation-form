@@ -1516,6 +1516,24 @@
             opacity: .6;
             cursor: default;
         }
+        .auth-link {
+            display: block;
+            width: 100%;
+            background: none;
+            border: 0;
+            color: var(--green);
+            text-decoration: underline;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 12px;
+            padding: 4px;
+            text-align: center;
+        }
+        .auth-link:disabled {
+            opacity: .6;
+            cursor: default;
+        }
         .auth-error {
             background: var(--red-soft);
             color: var(--red);
@@ -1588,6 +1606,8 @@
         if (firebaseReady) {
             fbApp = firebase.initializeApp(firebaseConfig);
             fbAuth = firebase.auth();
+            // נשארים מחוברים במכשיר הזה גם אחרי סגירת הדפדפן, עד להתנתקות ידנית
+            fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
             fbDb = firebase.firestore();
             fbDb.enablePersistence({ synchronizeTabs: true }).catch(() => {});
         }
@@ -2038,10 +2058,11 @@
                 <p class="auth-sub">כניסת מדריכים · תצפית חנ״ג</p>
                 ${authError ? `<div class="auth-error">${esc(authError)}</div>` : ''}
                 <label>דוא״ל</label>
-                <input id="auth-email" type="email" autocomplete="username" placeholder="name@example.com" value="${esc(window._authEmail||'')}">
+                <input id="auth-email" type="email" autocomplete="username" placeholder="name@example.com" value="${esc(read('pe-last-email',''))}">
                 <label>סיסמה</label>
                 <input id="auth-pass" type="password" autocomplete="current-password" placeholder="••••••••">
                 <button class="primary" ${authBusy?'disabled':''} onclick="doLogin()">${authBusy?'מתחבר…':'התחברות'}</button>
+                <button type="button" class="auth-link" ${authBusy?'disabled':''} onclick="doForgotPassword()">שכחת/י סיסמה? לחצי כאן לאיפוס</button>
                 <p class="auth-sub" style="margin-top:14px">אין לך חשבון? פנה/י למפקח/ת להקמת שם משתמש.</p>
             </div></div>`;
         }
@@ -2049,12 +2070,32 @@
         function doLogin() {
             const email = document.getElementById('auth-email').value.trim();
             const pass = document.getElementById('auth-pass').value;
-            window._authEmail = email;
+            write('pe-last-email', email);
             if (!email || !pass) { authError = 'נא למלא דוא״ל וסיסמה'; render(); return; }
             authBusy = true; authError = ''; render();
             fbAuth.signInWithEmailAndPassword(email, pass).catch(err => {
                 authBusy = false;
                 authError = 'התחברות נכשלה: ' + (err && err.message ? err.message : 'שגיאה לא ידועה');
+                render();
+            });
+        }
+
+        function doForgotPassword() {
+            const emailField = document.getElementById('auth-email');
+            const email = (emailField ? emailField.value : '').trim();
+            if (!email) {
+                authError = 'נא להזין קודם את כתובת הדוא״ל למעלה, ואז ללחוץ שוב על "שכחתי סיסמה"';
+                render();
+                return;
+            }
+            write('pe-last-email', email);
+            authBusy = true; authError = ''; render();
+            fbAuth.sendPasswordResetEmail(email).then(() => {
+                authBusy = false; authError = ''; render();
+                toast('נשלח מייל לאיפוס סיסמה אל ' + email + ' — בדוק/י גם בתיקיית הספאם');
+            }).catch(err => {
+                authBusy = false;
+                authError = 'לא ניתן היה לשלוח מייל איפוס: ' + (err && err.message ? err.message : 'שגיאה לא ידועה');
                 render();
             });
         }
