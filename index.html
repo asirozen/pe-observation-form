@@ -38,6 +38,21 @@
             color: var(--ink);
             font-family: Assistant, Arial, sans-serif
         }
+        ::-webkit-scrollbar {
+            width: 11px;
+            height: 11px
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d9cdba;
+            border-radius: 99px;
+            border: 3px solid var(--sand)
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #c9baa0
+        }
         button,
         input,
         textarea {
@@ -106,8 +121,9 @@
             border-radius: 12px;
             display: grid;
             place-items: center;
-            background: var(--green);
-            color: white
+            background: linear-gradient(145deg, #38a276, var(--green) 65%, #276c4e);
+            color: white;
+            box-shadow: 0 6px 14px rgba(24, 51, 59, .18)
         }
         .mark svg {
             width: 27px;
@@ -134,22 +150,32 @@
             border-radius: 11px;
             padding: 10px 14px;
             font-weight: 800;
-            transition: .18s ease
+            transition: transform .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease
         }
         .header-actions button {
             border: 1px solid var(--line);
             background: var(--paper);
             color: var(--ink)
         }
+        .header-actions button:hover {
+            border-color: var(--green);
+            transform: translateY(-1px)
+        }
         .save-btn {
             border: 0;
-            background: var(--ink);
-            color: white
+            background: linear-gradient(145deg, #24424a, var(--ink) 65%);
+            color: white;
+            box-shadow: 0 8px 18px rgba(24, 51, 59, .22)
+        }
+        .save-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(24, 51, 59, .28)
         }
         .header-actions .active-nav {
             background: var(--green);
             border-color: var(--green);
-            color: white
+            color: white;
+            box-shadow: 0 6px 14px rgba(47, 143, 104, .28)
         }
         .main {
             max-width: 1100px;
@@ -229,9 +255,10 @@
             min-width: 270px;
             max-width: 300px;
             padding: 15px 17px;
-            background: rgba(255, 253, 249, .75);
+            background: rgba(255, 253, 249, .9);
             border: 1px solid var(--line);
-            border-radius: 16px
+            border-radius: 16px;
+            box-shadow: 0 10px 26px rgba(24, 51, 59, .06)
         }
         .session-icon {
             width: 34px;
@@ -270,7 +297,7 @@
             display: block;
             height: 100%;
             border-radius: inherit;
-            background: var(--green);
+            background: linear-gradient(90deg, #38a276, var(--green));
             transition: width .25s ease
         }
         .nav {
@@ -1688,7 +1715,7 @@
             }
         };
 
-        const INTERN_DATA = [
+        let INTERN_DATA = [
             // סיגל (8)
             { id: "סיגל-אליהו-כודדה", firstName: "אליהו", lastName: "כודדה", fullName: "אליהו כודדה", mentor: "סיגל",
                 school: "ישורון", city: "נתניה", schoolType: "יסודי", phone: "054-6479733" },
@@ -1826,6 +1853,83 @@
                 school: "אולפנת יבנה", city: "חולון", schoolType: "על יסודי", phone: "058-5748094" },
         ];
 
+        /* ============================================================
+           סנכרון מגיליון Google Sheets — כל לשונית = מדריך/ה אחד/ת.
+           הגיליון פתוח לצפייה עם הקישור, ולכן ניתן לקרוא כל לשונית
+           ישירות דרך כתובת ה-export, בלי צורך ב"פרסום לאינטרנט" נפרד.
+           ============================================================ */
+        const INTERN_SHEET_PUBLISHED_KEY = "2PACX-1vQsVWrJq77S4weIHxTEYN3mWt5vGm1fwl0g0emL7vjd58ftRS0tTbuSZTl7pRLLFSo_ngH3dp5wK2fo";
+        const MENTOR_SHEET_TABS = [
+            { mentor: "סיגל", gid: "403947999" },
+            { mentor: "שגיא", gid: "1002" },
+            { mentor: "שירן", gid: "179614923" },
+            { mentor: "עידן", gid: "1001" },
+            { mentor: "אסף", gid: "1191688057" },
+            { mentor: "מורן", gid: "688317322" }
+        ];
+
+        function internTabCsvUrl(gid) {
+            return `https://docs.google.com/spreadsheets/d/e/${INTERN_SHEET_PUBLISHED_KEY}/pub?gid=${gid}&single=true&output=csv`;
+        }
+
+        async function fetchMentorTab(mentor, gid) {
+            const res = await fetch(internTabCsvUrl(gid), { cache: "no-store" });
+            if (!res.ok) throw new Error(`HTTP ${res.status} עבור ${mentor}`);
+            const csvText = await res.text();
+            const wb = XLSX.read(csvText, { type: "string" });
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" });
+            if (!rows.length) return [];
+            const header = rows[0].map(h => (h || "").toString().trim());
+            const idx = {
+                lastName: header.indexOf("שם משפחה"),
+                firstName: header.indexOf("שם פרטי"),
+                school: header.indexOf("שם בית הספר ששובצת"),
+                city: header.indexOf("עיר בית הספר"),
+                schoolType: header.findIndex(h => h.indexOf('סוג ביה"ס') > -1 || h.indexOf("סוג בית") > -1),
+                phone: header.findIndex(h => h.indexOf("טלפון") > -1)
+            };
+            const out = [];
+            for (let i = 1; i < rows.length; i++) {
+                const r = rows[i];
+                const firstName = (r[idx.firstName] || "").toString().trim();
+                const lastName = (r[idx.lastName] || "").toString().trim();
+                if (!firstName && !lastName) continue;
+                out.push({
+                    id: `${mentor}-${firstName}-${lastName}`.replace(/\s+/g, ""),
+                    firstName, lastName,
+                    fullName: `${firstName} ${lastName}`.trim(),
+                    mentor,
+                    school: (r[idx.school] || "").toString().trim(),
+                    city: (r[idx.city] || "").toString().trim(),
+                    schoolType: idx.schoolType > -1 ? (r[idx.schoolType] || "").toString().trim() : "",
+                    phone: idx.phone > -1 ? (r[idx.phone] || "").toString().trim() : ""
+                });
+            }
+            return out;
+        }
+
+        async function loadInternDataFromSheet() {
+            const errors = [];
+            const results = await Promise.all(
+                MENTOR_SHEET_TABS.map(t => fetchMentorTab(t.mentor, t.gid).catch(e => { errors.push(t.mentor + ': ' + e.message); return null; }))
+            );
+            const merged = results.filter(r => r !== null).flat();
+            if (merged.length) {
+                INTERN_DATA = merged;
+                write("pe-intern-cache", INTERN_DATA);
+                toast(`✅ נטענו ${merged.length} סטאז׳רים מהגיליון (${MENTOR_SHEET_TABS.length - errors.length}/${MENTOR_SHEET_TABS.length} לשוניות)`);
+            }
+            if (errors.length) {
+                console.error('שגיאות בטעינת לשוניות:', errors);
+                toast(`⚠️ נכשלה טעינת ${errors.length} לשוניות מהגיליון — משתמשים ברשימה השמורה`);
+            }
+        }
+        {
+            const cached = read("pe-intern-cache", null);
+            if (cached && Array.isArray(cached) && cached.length) INTERN_DATA = cached;
+        }
+        loadInternDataFromSheet();
+
         const blankDraft = () => ({
             name: '',
             internId: '',
@@ -1872,9 +1976,9 @@
         function icon() { return '<svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M8 24c3-9 8-14 15-16" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M7 14c5-2 10-1 16 3" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M8 25c6-2 11-2 17 0" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>'; }
 
         function header() {
-            return `<header class="topbar"><div class="national-logo-wrap">
+            return `<header class="topbar"><div class="national-logo-wrap" onclick="go('form')" style="cursor:pointer" title="חזרה לדף הבית">
                 <img src="data:image/png;base64,${LOGO_B64}" alt="הפיקוח על החינוך הגופני, מחוז תל אביב" loading="eager">
-            </div><div class="topbar-inner"><div class="brand"><div class="mark">${icon()}</div><div><strong>מגרש שקט</strong><span>תצפית חנ״ג · 45 דקות</span></div></div><div class="header-actions">${firebaseReady && currentUser ? `<span class="who-am-i">${esc(currentUser.email||'')}<button onclick="doLogout()">התנתקות</button></span>` : ''}<button class="${view==='form'?'active-nav':''}" onclick="go('form')">תצפית חדשה</button><button class="${view==='history'?'active-nav':''}" onclick="go('history')">היסטוריה${history.length?` (${history.length})`:''}</button>${firebaseReady ? `<button class="${(view==='guides'||view==='guideDetail')?'active-nav':''}" onclick="go('guides')">מדריכים</button>` : ''}<button class="${view==='settings'?'active-nav':''}" onclick="go('settings')">הגדרות</button><button class="save-btn" onclick="saveDraft()">שמירה</button></div></div></header>`;
+            </div><div class="topbar-inner"><div class="brand" onclick="go('form')" style="cursor:pointer" title="חזרה לדף הבית"><div class="mark">${icon()}</div><div><strong>מגרש שקט</strong><span>תצפית חנ״ג · 45 דקות</span></div></div><div class="header-actions">${firebaseReady && currentUser ? `<span class="who-am-i">${esc(currentUser.email||'')}<button onclick="doLogout()">התנתקות</button></span>` : ''}<button class="${view==='form'?'active-nav':''}" onclick="go('form')">תצפית חדשה</button><button class="${view==='history'?'active-nav':''}" onclick="go('history')">היסטוריה${history.length?` (${history.length})`:''}</button>${firebaseReady ? `<button class="${(view==='guides'||view==='guideDetail')?'active-nav':''}" onclick="go('guides')">מדריכים</button>` : ''}<button class="${view==='settings'?'active-nav':''}" onclick="go('settings')">הגדרות</button><button class="save-btn" onclick="saveDraft()">שמירה</button></div></div></header>`;
         }
 
         function shell(content) {
