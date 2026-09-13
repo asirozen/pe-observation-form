@@ -1908,12 +1908,24 @@
             return out;
         }
 
+        function dedupeInterns(list) {
+            const seen = new Set();
+            const out = [];
+            for (const x of list) {
+                const key = (x.mentor || "") + "|" + (x.fullName || "").replace(/\s+/g, " ").trim();
+                if (seen.has(key)) continue;
+                seen.add(key);
+                out.push(x);
+            }
+            return out;
+        }
+
         async function loadInternDataFromSheet() {
             const errors = [];
             const results = await Promise.all(
                 MENTOR_SHEET_TABS.map(t => fetchMentorTab(t.mentor, t.gid).catch(e => { errors.push(t.mentor + ': ' + e.message); return null; }))
             );
-            const merged = results.filter(r => r !== null).flat();
+            const merged = dedupeInterns(results.filter(r => r !== null).flat());
             if (merged.length) {
                 INTERN_DATA = merged;
                 write("pe-intern-cache", INTERN_DATA);
